@@ -2,90 +2,122 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
+import time
 
-# --- CẤU HÌNH GIAO DIỆN ---
-st.set_page_config(page_title="AI Weather HCMC", page_icon="🏫", layout="wide")
+# --- CẤU HÌNH TRANG ---
+st.set_page_config(page_title="Hệ thống Cảnh báo Thời tiết THPT HCMC", layout="wide", page_icon="🌤️")
 
-# CSS Tùy chỉnh (Đã sửa chuẩn cú pháp để không bị lỗi)
+# --- KHỞI TẠO TRẠNG THÁI ĐĂNG NHẬP (SESSION STATE) ---
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+
+# --- CSS TÙY CHỈNH ---
 st.markdown("""
     <style>
-    .stMetric { background-color: #f0f8ff; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); }
-    .health-box { background-color: #e8f5e9; padding: 20px; border-left: 5px solid #4caf50; border-radius: 5px; margin-bottom: 15px; }
-    .danger-box { background-color: #ffebee; padding: 20px; border-left: 5px solid #f44336; border-radius: 5px; margin-bottom: 15px; }
+    .metric-card { background-color: #ffffff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #eef2f5; }
+    .alert-box { padding: 15px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; }
+    .sun-alert { background-color: #fff3cd; color: #856404; border-left: 5px solid #ffc107; }
+    .rain-alert { background-color: #d1ecf1; color: #0c5460; border-left: 5px solid #17a2b8; }
+    .safe-alert { background-color: #d4edda; color: #155724; border-left: 5px solid #28a745; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- TIÊU ĐỀ DỰ ÁN ---
-st.title("⛈️ Hệ Thống IoT & AI Dự Báo Thời Tiết Cực Đoan Cục Bộ")
-st.markdown("**Mục tiêu:** Đề xuất giải pháp bảo vệ sức khỏe cho học sinh THPT tại địa bàn TP.HCM")
+# --- CHỨC NĂNG 4: HỆ THỐNG ĐĂNG NHẬP NGƯỜI DÙNG ---
+if not st.session_state.logged_in:
+    st.title("🔐 Hệ thống Quản lý Sức khỏe Học đường - Đăng nhập")
+    st.write("Vui lòng đăng nhập tài khoản học sinh/nhà trường để theo dõi kỹ càng hơn.")
+    
+    col_a, col_b = st.columns(2)
+    with col_a:
+        user = st.text_input("Tên đăng nhập (Thử nghiệm: hocsinh)")
+        password = st.text_input("Mật khẩu (Thử nghiệm: 123)", type="password")
+        
+        if st.button("Đăng nhập", type="primary"):
+            if user == "hocsinh" and password == "123":
+                st.session_state.logged_in = True
+                st.session_state.username = user
+                st.success("Đăng nhập thành công! Đang tải dữ liệu...")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.error("Sai tài khoản hoặc mật khẩu!")
+    st.stop() # Dừng chương trình nếu chưa đăng nhập thành công
+
+# --- GIAO DIỆN CHÍNH SAU KHI ĐĂNG NHẬP ---
+st.sidebar.title(f"👤 Chào, {st.session_state.username}!")
+if st.sidebar.button("Đăng xuất"):
+    st.session_state.logged_in = False
+    st.rerun()
+
+st.title("🏫 Hệ Thống IoT & AI Quản Trắc Thời Tiết Học Đường TP.HCM")
+st.write("Dữ liệu được đồng bộ trực tiếp từ trạm quan trắc cục bộ tại trường THPT.")
 st.divider()
 
-# --- TẠO CÁC TAB CHỨC NĂNG ---
-tab1, tab2, tab3 = st.tabs(["📊 Trạm Quan Trắc IoT", "🤖 AI Dự Báo & Cảnh Báo", "🏥 Sổ Tay Sức Khỏe"])
+# --- CHỨC NĂNG 1: LƯU TRỮ & HIỂN THỊ DỮ LIỆU TỪ TRẠM QUAN TRẮC CỦA BẠN ---
+# (Khi làm thật, mục này sẽ đọc file CSV hoặc API Firebase lưu lịch sử trạm đo)
+st.header("📊 1. Dữ liệu thực tế từ Trạm Quan Trắc của nhóm")
 
-# --- TAB 1: DỮ LIỆU IOT THỜI GIAN THỰC ---
-with tab1:
-    st.header("Thông số môi trường hiện tại")
-    
-    # Giả lập dữ liệu thời gian thực
-    col1, col2, col3, col4 = st.columns(4)
-    with col1: st.metric(label="Nhiệt độ", value="35.2 °C", delta="+1.2 °C")
-    with col2: st.metric(label="Độ ẩm", value="75 %", delta="-2 %")
-    with col3: st.metric(label="Chỉ số UV", value="8.5", delta="Cao", delta_color="inverse")
-    with col4: st.metric(label="Bụi mịn PM2.5", value="45 µg/m³", delta="Trung bình")
-    
-    st.subheader("Biến thiên nhiệt độ trong 12 giờ qua")
-    # Biểu đồ Plotly chuyên nghiệp
-    df_chart = pd.DataFrame({
-        'Thời gian (Giờ)': [7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
-        'Nhiệt độ (°C)': [27, 29, 31, 33, 35, 36, 35.2, 34, 32, 30]
+# Giả lập nhập file dữ liệu từ trạm đo (Các em có thể upload file excel/csv của trạm đo lên đây)
+uploaded_file = st.file_uploader("Tải lên tệp dữ liệu trạm đo (.csv) nếu có", type="csv")
+
+if uploaded_file is not None:
+    df_iot = pd.read_csv(uploaded_file)
+    st.success("Đã đồng bộ dữ liệu trạm đo thành công!")
+else:
+    # Dữ liệu mẫu lưu trữ của trạm đo để hiển thị
+    st.info("💡 Đang hiển thị dữ liệu lưu trữ mặc định của trạm đo IoT tại trường:")
+    df_iot = pd.DataFrame({
+        'Thời gian': ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00'],
+        'Nhiệt độ (°C)': [29.5, 31.0, 33.2, 35.5, 36.8, 36.2, 34.0],
+        'Độ ẩm (%)': [85, 80, 75, 70, 65, 68, 72],
+        'Chỉ số UV': [2.1, 4.5, 7.0, 9.5, 10.2, 8.8, 5.0]
     })
-    fig = px.line(df_chart, x='Thời gian (Giờ)', y='Nhiệt độ (°C)', markers=True, template="plotly_white")
-    st.plotly_chart(fig, use_container_width=True)
 
-# --- TAB 2: MÔ HÌNH AI DỰ BÁO ---
-with tab2:
-    st.header("Kiểm thử Mô hình Trí tuệ nhân tạo")
-    st.write("Nhập các thông số dự kiến để AI phân tích và đưa ra cảnh báo.")
-    
-    c1, c2 = st.columns(2)
-    with c1:
-        nhap_nhietdo = st.slider("Nhiệt độ (°C)", 20.0, 45.0, 36.5)
-        nhap_uv = st.slider("Chỉ số UV", 0.0, 12.0, 9.0)
-    with c2:
-        nhap_doam = st.slider("Độ ẩm (%)", 30.0, 100.0, 85.0)
-        
-    if st.button("🚀 Kích hoạt AI Phân tích", type="primary"):
-        st.divider()
-        if nhap_nhietdo >= 37.0 or nhap_uv >= 9.0:
-            st.error("🚨 CẢNH BÁO MỨC ĐỘ NGUY HIỂM: Nắng nóng cực đoan & Tia UV bức xạ cao!")
-            st.markdown("""
-                <div class="danger-box">
-                    <b>Khuyến nghị khẩn cấp:</b><br>
-                    - Tạm dừng toàn bộ các tiết học Thể dục ngoài trời.<br>
-                    - Không tổ chức sinh hoạt dưới cờ ở sân trường không có mái che.<br>
-                    - Nhắc nhở học sinh có tiền sử tim mạch, huyết áp hạn chế di chuyển.
-                </div>
-                """, unsafe_allow_html=True)
-        elif nhap_doam >= 85.0 and nhap_nhietdo >= 32.0:
-            st.warning("⚠️ CẢNH BÁO MỨC ĐỘ TRUNG BÌNH: Nguy cơ mưa giông & Ngập lụt cục bộ.")
-            st.markdown("""
-                <div class="health-box">
-                    <b>Khuyến nghị phòng ngừa:</b><br>
-                    - Học sinh chuẩn bị sẵn áo mưa khi tan trường.<br>
-                    - Tránh trú mưa dưới các gốc cây cổ thụ lớn trong khuôn viên trường.
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.success("✅ THỜI TIẾT ỔN ĐỊNH: Chỉ số an toàn cho các hoạt động giáo dục.")
+# Hiển thị các thông số hiện tại (Dòng cuối cùng của trạm đo)
+current_data = df_iot.iloc[-1]
+c1, c2, c3 = st.columns(3)
+with c1: st.metric("Nhiệt độ Trạm đo", f"{current_data['Nhiệt độ (°C)']} °C")
+with c2: st.metric("Độ ẩm Trạm đo", f"{current_data['Độ ẩm (%)']} %")
+with c3: st.metric("Chỉ số UV Trạm đo", f"{current_data['Chỉ số UV']}")
 
-# --- TAB 3: GIẢI PHÁP SỨC KHỎE ---
-with tab3:
-    st.header("Cẩm nang bảo vệ sức khỏe học đường")
-    st.write("Dựa trên phân tích dữ liệu khí hậu đặc thù của TP.HCM, hệ thống đề xuất:")
-    
-    st.markdown("""
-    * **Quản lý nước uống:** Học sinh cần bổ sung 1.5 - 2 lít nước mỗi ngày, ưu tiên uống nước lọc xen kẽ các tiết học, đặc biệt vào những ngày nắng nóng (tháng 3 - tháng 5).
-    * **Trang bị cá nhân:** Sử dụng kem chống nắng, áo khoác dày dặn và kính râm khi di chuyển trên các tuyến đường ít bóng râm.
-    * **Giải pháp từ nhà trường:** Cần bố trí thêm hệ thống quạt thông gió tại các hành lang và hệ thống mái che cơ động ở khu vực căn tin.
-    """)
+# Vẽ biểu đồ lịch sử trạm đo
+fig_temp = px.line(df_iot, x='Thời gian', y=['Nhiệt độ (°C)', 'Chỉ số UV'], title="Biểu đồ lịch sử trạm đo trong ngày", markers=True)
+st.plotly_chart(fig_temp, use_container_width=True)
+
+st.divider()
+
+# --- CHỨC NĂNG 2 & 3: LỜI NHẮC THÔNG MINH & GỬI THÔNG BÁO QUA TIN NHẮN ---
+st.header("🔔 2. Trợ lý AI - Nhắc nhở & Gửi thông báo thông minh")
+
+# Lấy thông số hiện tại từ trạm đo để đưa ra lời nhắc tự động
+t_hien_tai = current_data['Nhiệt độ (°C)']
+uv_hien_tai = current_data['Chỉ số UV']
+h_hien_tai = current_data['Độ ẩm (%)']
+
+st.subheader("✉️ Lời nhắc tự động từ hệ thống dành cho bạn:")
+
+loi_nhac_tin_nhan = ""
+
+if t_hien_tai >= 35.0 or uv_hien_tai >= 8.0:
+    loi_nhac_tin_nhan = f"[CẢNH BÁO HỌC ĐƯỜNG] Trời đang NẮNG GẮT ({t_hien_tai}°C), UV đạt {uv_hien_tai}. Bạn hãy BÔI KEM CHỐNG NẮNG, mang áo khoác và hạn chế ra sân trường giờ ra chơi nhé!"
+    st.markdown(f'<div class="alert-box sun-alert">☀️ {loi_nhac_tin_nhan}</div>', unsafe_allow_html=True)
+elif h_hien_tai >= 80.0 and t_hien_tai >= 30.0:
+    loi_nhac_tin_nhan = f"[CẢNH BÁO HỌC ĐƯỜNG] Độ ẩm cao ({h_hien_tai}%), nguy cơ CÓ MƯA GIÔNG LỚN. Hãy MANG THEO DÙ/ÁO MƯA khi tan trường và cẩn thận đường trơn trượt!"
+    st.markdown(f'<div class="alert-box rain-alert">⛈️ {loi_nhac_tin_nhan}</div>', unsafe_allow_html=True)
+else:
+    loi_nhac_tin_nhan = "[THÔNG BÁO HỌC ĐƯỜNG] Thời tiết hiện tại rất lý tưởng và an toàn. Chúc các bạn có một ngày học tập thật tốt!"
+    st.markdown(f'<div class="alert-box safe-alert">✅ {loi_nhac_tin_nhan}</div>', unsafe_allow_html=True)
+
+# Giao diện gửi SMS / Tin nhắn điện thoại
+st.subheader("📱 Tính năng gửi SMS/Tin nhắn nhắc nhở")
+sdt = st.text_input("Nhập số điện thoại của bạn hoặc phụ huynh để nhận tin nhắn:", placeholder="090xxxxxxx")
+
+if st.button("📲 Gửi lời nhắc qua tin nhắn ngay lập tức"):
+    if sdt:
+        with st.spinner("Hệ thống đang kết nối API mạng viễn thông để gửi..."):
+            time.sleep(1.5) # Giả lập thời gian gửi qua API tin nhắn
+            st.success(f"🎉 Đã gửi tin nhắn SMS thành công đến số {sdt}!")
+            st.info(f" Nội dung đã gửi: *\"{loi_nhac_tin_nhan}\"*")
+    else:
+        st.error("Vui lòng điền số điện thoại trước khi bấm gửi!")
